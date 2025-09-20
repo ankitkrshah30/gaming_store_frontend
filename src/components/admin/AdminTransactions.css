@@ -1,0 +1,59 @@
+.admin-transactions {
+  max-width: 1400px;
+}
+
+.transactions-table {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.transactions-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.transactions-table th {
+  background: #1e3c72;
+  color: white;
+  padding: 15px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.transactions-table td {
+  padding: 15px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.transactions-table tr:hover {
+  background: #f8f9fa;
+}
+
+.type-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.type-badge.credit {
+  background: #d4edda;
+  color: #155724;
+}
+
+.type-badge.debit {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.negative {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+.positive {
+  color: #28a745;
+  font-weight: 600;
+}

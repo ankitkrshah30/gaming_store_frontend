@@ -1,394 +1,175 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { adminService } from '../../services/adminService';
-import { memberService } from '../../services/memberService';
-import { gameService } from '../../services/gameService';
-import { transactionService } from '../../services/transactionService';
-import { rechargeService } from '../../services/rechargeService';
-import { useAuth } from '../../context/AuthContext';
-import AddGameModal from '../../components/AddGameModal/AddGameModal';
-import AddAdminModal from '../../components/AddAdminModal/AddAdminModal';
+import { adminAuthService } from '../../services/adminAuthService';
+import AdminMembers from '../../components/admin/AdminMembers';
+import AdminGames from '../../components/admin/AdminGames';
+import AdminTransactions from '../../components/admin/AdminTransactions';
+import AdminRecharges from '../../components/admin/AdminRecharges';
+import AdminStats from '../../components/admin/AdminStats';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
-  const [dashboardData, setDashboardData] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [games, setGames] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [recharges, setRecharges] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [showGameModal, setShowGameModal] = useState(false);
-  const [showAdminModal, setShowAdminModal] = useState(false);
-  const [message, setMessage] = useState('');
-  const { user } = useAuth();
+  const [activeSection, setActiveSection] = useState('overview');
+  const [adminData, setAdminData] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    // Check if admin is logged in
+    if (!adminAuthService.isAdminLoggedIn()) {
+      navigate('/admin/login');
+      return;
+    }
 
-  useEffect(() => {
-    if (activeTab === 'members') fetchMembers();
-    if (activeTab === 'games') fetchGames();
-    if (activeTab === 'transactions') fetchTransactions();
-    if (activeTab === 'recharges') fetchRecharges();
-  }, [activeTab]);
+    // Get admin data
+    const currentAdmin = adminAuthService.getCurrentAdmin();
+    setAdminData(currentAdmin);
 
-  const fetchDashboardData = async () => {
+    // Validate token
+    validateAdminSession();
+  }, [navigate]);
+
+  const validateAdminSession = async () => {
     try {
-      const data = await adminService.getDashboard();
-      setDashboardData(data);
+      await adminAuthService.validateAdminToken();
     } catch (error) {
-      setMessage('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
+      console.error('Admin session invalid:', error);
+      navigate('/admin/login');
     }
   };
 
-  const fetchMembers = async () => {
-    try {
-      const data = await memberService.getAllMembers();
-      setMembers(data);
-    } catch (error) {
-      setMessage('Failed to load members');
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to logout?')) {
+      adminAuthService.adminLogout();
+      navigate('/admin/login');
     }
   };
 
-  const fetchGames = async () => {
-    try {
-      const data = await gameService.getAllGames();
-      setGames(data);
-    } catch (error) {
-      setMessage('Failed to load games');
+  const menuItems = [
+    { id: 'overview', label: 'Overview', icon: '📊' },
+    { id: 'members', label: 'Members', icon: '👥' },
+    { id: 'games', label: 'Games', icon: '🎮' },
+    { id: 'transactions', label: 'Transactions', icon: '💸' },
+    { id: 'recharges', label: 'Recharges', icon: '🔄' },
+    { id: 'settings', label: 'Settings', icon: '⚙️' }
+  ];
+
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'overview':
+        return <AdminStats />;
+      case 'members':
+        return <AdminMembers />;
+      case 'games':
+        return <AdminGames />;
+      case 'transactions':
+        return <AdminTransactions />;
+      case 'recharges':
+        return <AdminRecharges />;
+      case 'settings':
+        return <AdminSettings />;
+      default:
+        return <AdminStats />;
     }
   };
 
-  const fetchTransactions = async () => {
-    try {
-      const data = await transactionService.getAllTransactions();
-      setTransactions(data);
-    } catch (error) {
-      setMessage('Failed to load transactions');
-    }
-  };
-
-  const fetchRecharges = async () => {
-    try {
-      const data = await rechargeService.getAllRecharges();
-      setRecharges(data);
-    } catch (error) {
-      setMessage('Failed to load recharges');
-    }
-  };
-
-  const handleDeleteMember = async (memberId) => {
-    if (!window.confirm('Are you sure you want to delete this member?')) return;
-    
-    try {
-      await memberService.deleteMember(memberId);
-      setMembers(members.filter(m => m.id !== memberId));
-      setMessage('Member deleted successfully');
-    } catch (error) {
-      setMessage('Failed to delete member');
-    }
-  };
-
-  const handleDeleteGame = async (gameId) => {
-    if (!window.confirm('Are you sure you want to delete this game?')) return;
-    
-    try {
-      await gameService.deleteGame(gameId);
-      setGames(games.filter(g => g.id !== gameId));
-      setMessage('Game deleted successfully');
-    } catch (error) {
-      setMessage('Failed to delete game');
-    }
-  };
-
-  const handleGameAdded = () => {
-    setShowGameModal(false);
-    setMessage('Game added successfully');
-    if (activeTab === 'games') fetchGames();
-    fetchDashboardData();
-  };
-
-  const handleAdminAdded = () => {
-    setShowAdminModal(false);
-    setMessage('Admin created successfully');
-    if (activeTab === 'members') fetchMembers();
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  if (loading) {
+  if (!adminData) {
     return (
-      <div className="admin-page">
-        <div className="loading-container">
-          <div className="loading-spinner">Loading dashboard...</div>
-        </div>
+      <div className="admin-loading">
+        <div className="loading-spinner"></div>
+        <p>Loading admin dashboard...</p>
       </div>
     );
   }
 
   return (
-    <div className="admin-page">
-      <div className="admin-container">
-        <div className="admin-header">
-          <div className="admin-welcome">
-            <h1>Admin Dashboard</h1>
-            <p>Welcome back, {user?.name}</p>
-          </div>
-          <div className="admin-actions">
-            <button 
-              className="action-btn primary"
-              onClick={() => setShowGameModal(true)}
-            >
-              Add Game
-            </button>
-            <button 
-              className="action-btn secondary"
-              onClick={() => setShowAdminModal(true)}
-            >
-              Add Admin
-            </button>
+    <div className="admin-dashboard-layout">
+      {/* Sidebar */}
+      <div className={`admin-sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+        <div className="sidebar-header">
+          <div className="admin-profile">
+            <div className="admin-avatar">
+              {adminData.name?.charAt(0).toUpperCase()}
+            </div>
+            <div className="admin-info">
+              <h3>{adminData.name}</h3>
+              <p>Administrator</p>
+            </div>
           </div>
         </div>
 
-        {message && (
-          <div className={`message ${message.includes('successfully') ? 'success' : 'error'}`}>
-            {message}
-            <button onClick={() => setMessage('')} className="close-btn">×</button>
-          </div>
-        )}
+        <nav className="sidebar-nav">
+          {menuItems.map(item => (
+            <button
+              key={item.id}
+              className={`nav-item ${activeSection === item.id ? 'active' : ''}`}
+              onClick={() => setActiveSection(item.id)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-label">{item.label}</span>
+            </button>
+          ))}
+        </nav>
 
-        <div className="admin-tabs">
-          <button 
-            className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
-          >
-            📊 Dashboard
+        <div className="sidebar-footer">
+          <button className="logout-btn" onClick={handleLogout}>
+            <span>🚪</span>
+            <span>Logout</span>
           </button>
-          <button 
-            className={`tab-btn ${activeTab === 'members' ? 'active' : ''}`}
-            onClick={() => setActiveTab('members')}
-          >
-            👥 Members
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === 'games' ? 'active' : ''}`}
-            onClick={() => setActiveTab('games')}
-          >
-            🎮 Games
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === 'transactions' ? 'active' : ''}`}
-            onClick={() => setActiveTab('transactions')}
-          >
-            💳 Transactions
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === 'recharges' ? 'active' : ''}`}
-            onClick={() => setActiveTab('recharges')}
-          >
-            💰 Recharges
-          </button>
-        </div>
-
-        <div className="admin-content">
-          {activeTab === 'dashboard' && (
-            <div className="dashboard-overview">
-              <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-icon">👥</div>
-                  <div className="stat-info">
-                    <h3>Total Members</h3>
-                    <p>{dashboardData?.totalMembers || 0}</p>
-                  </div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-icon">🎮</div>
-                  <div className="stat-info">
-                    <h3>Total Games</h3>
-                    <p>{dashboardData?.totalGames || 0}</p>
-                  </div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-icon">💳</div>
-                  <div className="stat-info">
-                    <h3>Total Transactions</h3>
-                    <p>{dashboardData?.totalTransactions || 0}</p>
-                  </div>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-icon">💰</div>
-                  <div className="stat-info">
-                    <h3>Total Revenue</h3>
-                    <p>₹{dashboardData?.totalRevenue?.toFixed(2) || '0.00'}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'members' && (
-            <div className="members-section">
-              <div className="section-header">
-                <h2>All Members</h2>
-                <p>{members.length} total members</p>
-              </div>
-              <div className="data-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Phone</th>
-                      <th>Role</th>
-                      <th>Balance</th>
-                      <th>Joined</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {members.map(member => (
-                      <tr key={member.id}>
-                        <td>{member.name}</td>
-                        <td>{member.phoneNumber}</td>
-                        <td>
-                          <span className={`role-badge ${member.role?.toLowerCase()}`}>
-                            {member.role}
-                          </span>
-                        </td>
-                        <td>₹{member.balance?.toFixed(2)}</td>
-                        <td>{formatDate(member.joiningDate)}</td>
-                        <td>
-                          {member.role !== 'ADMIN' && (
-                            <button 
-                              className="delete-btn"
-                              onClick={() => handleDeleteMember(member.id)}
-                            >
-                              Delete
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'games' && (
-            <div className="games-section">
-              <div className="section-header">
-                <h2>All Games</h2>
-                <p>{games.length} total games</p>
-              </div>
-              <div className="games-grid">
-                {games.map(game => (
-                  <div key={game.id} className="admin-game-card">
-                    <div className="game-info">
-                      <h3>{game.name}</h3>
-                      <p className="game-price">₹{game.price}</p>
-                      <p className="game-players">{game.minPlayer}-{game.maxPlayer} players</p>
-                      <p className="game-duration">{game.duration} mins</p>
-                    </div>
-                    <button 
-                      className="delete-btn"
-                      onClick={() => handleDeleteGame(game.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'transactions' && (
-            <div className="transactions-section">
-              <div className="section-header">
-                <h2>All Transactions</h2>
-                <p>{transactions.length} total transactions</p>
-              </div>
-              <div className="data-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Member</th>
-                      <th>Game</th>
-                      <th>Amount</th>
-                      <th>Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.map((transaction, index) => (
-                      <tr key={index}>
-                        <td>{transaction.memberName}</td>
-                        <td>{transaction.gameName}</td>
-                        <td>₹{transaction.amount?.toFixed(2)}</td>
-                        <td>{formatDate(transaction.date)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'recharges' && (
-            <div className="recharges-section">
-              <div className="section-header">
-                <h2>All Recharges</h2>
-                <p>{recharges.length} total recharges</p>
-              </div>
-              <div className="data-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Member</th>
-                      <th>Amount</th>
-                      <th>Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recharges.map((recharge, index) => (
-                      <tr key={index}>
-                        <td>{recharge.memberName}</td>
-                        <td>₹{recharge.amount?.toFixed(2)}</td>
-                        <td>{formatDate(recharge.date)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {showGameModal && (
-        <AddGameModal 
-          onClose={() => setShowGameModal(false)}
-          onGameAdded={handleGameAdded}
-        />
-      )}
+      {/* Main Content */}
+      <div className="admin-main-content">
+        <div className="admin-topbar">
+          <button 
+            className="sidebar-toggle"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+          >
+            ☰
+          </button>
+          
+          <div className="topbar-title">
+            <h1>Gaming Store Admin</h1>
+            <p>Manage your gaming platform</p>
+          </div>
 
-      {showAdminModal && (
-        <AddAdminModal 
-          onClose={() => setShowAdminModal(false)}
-          onAdminAdded={handleAdminAdded}
-        />
-      )}
+          <div className="topbar-actions">
+            <span className="admin-name">Welcome, {adminData.name}</span>
+          </div>
+        </div>
+
+        <div className="admin-content-area">
+          {renderContent()}
+        </div>
+      </div>
     </div>
   );
 };
+
+// Admin Settings Component
+const AdminSettings = () => (
+  <div className="admin-settings">
+    <h2>Admin Settings</h2>
+    <div className="settings-grid">
+      <div className="setting-card">
+        <h3>🔐 Security</h3>
+        <p>Manage admin passwords and security settings</p>
+        <button className="btn btn-primary">Configure</button>
+      </div>
+      <div className="setting-card">
+        <h3>🎮 Game Settings</h3>
+        <p>Configure game pricing and availability</p>
+        <button className="btn btn-primary">Configure</button>
+      </div>
+      <div className="setting-card">
+        <h3>💰 Payment Settings</h3>
+        <p>Manage payment methods and pricing</p>
+        <button className="btn btn-primary">Configure</button>
+      </div>
+    </div>
+  </div>
+);
 
 export default AdminDashboard;
